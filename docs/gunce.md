@@ -1,9 +1,9 @@
-## 2026-05-27 — STAGE-0 Proje Kurulumu
+## 2026-05-27 — STAGE-2 Veri ETL Tamamlandı
 
-**>>> DEVAM KOMUTU: Yeni konuşmayı "STAGE-2 veri ETL'ye başlıyoruz" ile başlat <<<**
+**>>> DEVAM KOMUTU: Yeni konuşmayı "STAGE-3 fiziksel özniteliklere başlıyoruz" ile başlat <<<**
 
-Aktif adım    : STAGE-0 (tamamlandı), STAGE-2 bekleniyor
-Aktif model   : Sonnet 4.6 / Extended Thinking: kapalı
+Aktif adım    : STAGE-2 (tamamlandı), STAGE-3 bekleniyor
+Aktif model   : Gemini 1.5 Pro (Antigravity M4 stack)
 Son güncelleme: 2026-05-27
 Tıkanıklık    : Yok
 
@@ -26,11 +26,12 @@ Tamamlanan (bu oturumda):
 - Python ortamı kuruldu (3.13 base'li venv)
 - Karar 1-9 methodology_decisions.md'ye işlendi
 - v1'den dersler lessons_learned.md'ye aktarıldı
+- STAGE-2 tamamlandı: Birleşik dataset_v2.parquet ve holdout istasyonları oluşturuldu, rüzgar hızı başarıyla çıkarıldı.
 
 Açık görevler:
-- STAGE-2: PVOD power unit verification + capacity normalization
-- DKASC capacity estimation (literatürden veya y.max() heuristik)
-- Holdout istasyon onayı (station02 + station09)
+- STAGE-3: pvlib ile fiziksel öznitelik mühendisliği (solar position, cos_zenith, air_mass, T_cell)
+- Gece saatlerinde GHI = 0 ve cos_zenith < 0 doğrulaması
+- Döngüsel zaman değişkenleri üretimi (sin/cos saat ve ay)
 
 Sistem:
 - claude.ai Projects → düşünme, yazım, karar
