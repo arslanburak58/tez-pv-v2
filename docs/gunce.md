@@ -1,8 +1,8 @@
-## 2026-05-27 — STAGE-4 Walk-Forward Split Tamamlandı
+## 2026-05-27 — STAGE-5 Base Learner Eğitimi Tamamlandı
 
-**>>> DEVAM KOMUTU: Yeni konuşmayı "STAGE-5 model eğitimlerine başlıyoruz" ile başlat <<<**
+**>>> DEVAM KOMUTU: Yeni konuşmayı "STAGE-6 meta-learner eğitimine başlıyoruz" ile başlat <<<**
 
-Aktif adım    : STAGE-4 (tamamlandı), STAGE-5 bekleniyor
+Aktif adım    : STAGE-5 (tamamlandı), STAGE-6 bekleniyor
 Aktif model   : Gemini 1.5 Pro (Antigravity M4 stack)
 Son güncelleme: 2026-05-27
 Tıkanıklık    : Yok
@@ -28,11 +28,11 @@ Tamamlanan (bu oturumda):
 - v1'den dersler lessons_learned.md'ye aktarıldı
 - STAGE-2 tamamlandı: Birleşik dataset_v2.parquet ve holdout istasyonları oluşturuldu, rüzgar hızı başarıyla çıkarıldı.
 - STAGE-3 tamamlandı: pvlib ile fiziksel öznitelik mühendisliği, Ross T_cell, LST-bazlı Saat Açısı ve yerel saat sin/cos zaman değişkenleri hesaplandı.
-- STAGE-4 tamamlandı: İstasyon bazlı örnekleme sıklığına göre (DKASC=288, PVOD=96) dinamik 24 saatlik boşluklu ve holdout izolasyonlu 5-Fold Walk-Forward Split indeksleri üretilerek joblib olarak kaydedildi.
+- STAGE-5 tamamlandı: XGBoost (custom pinball objective), LightGBM ve CatBoost 9 model x 5-fold OOF tahminleri üretildi, x_meta_v2.joblib ve base_models_v2.joblib oluşturuldu.
 
 Açık görevler:
-- STAGE-5: Base Learner (XGBoost, LightGBM, CatBoost) x 3 Quantile (0.1, 0.5, 0.9) model eğitimleri.
-- Out-of-fold (OOF) base model tahmin matrisinin oluşturulması (`x_meta_v2.joblib`).
+- STAGE-6: sklearn QuantileRegressor (HiGHS LP) meta-öğrenicinin OOF matrisi üzerine eğitilmesi.
+- q=0.1, 0.5, 0.9 için 3 ayrı QR modeli, quantile crossing post-sort ile düzeltme.
 
 Sistem:
 - claude.ai Projects → düşünme, yazım, karar

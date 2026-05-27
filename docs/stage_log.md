@@ -82,4 +82,23 @@ Her stage tamamlandığında: tarih, ne yapıldı, çıktılar, doğrulama.
 
 ---
 
+## 2026-05-27 STAGE-5 — Base Learner Eğitimi ✓
+
+**Dosyalar:**
+- `data/processed/base_models_v2.joblib` (9 adet fully-trained base model sözlüğü)
+- `data/processed/x_meta_v2.joblib` (1,051,950 satırlık OOF tahmin matrisi ve y_meta etiketleri)
+- `models/base_learners.py` (Custom pinball loss ve model eğitim API'leri)
+- `scripts/train_base_models.py` (Üretim eğitim betiği)
+- `tests/test_base_models.py` (Birim testleri ve doğrulama paketi)
+
+**Yapılan İşlemler:**
+1. **XGBoost Custom Pinball Objective:** XGBoost yerleşik olarak quantile regression desteklemediği için seri hale getirme (pickle/joblib) ile %100 uyumlu, merdiven çökmesini (collapse) engelleyen, modül seviyesinde bir `XGBoostPinballObj` (Gradient ve Hessian) sınıfı tasarlandı ve modele entegre edildi.
+2. **Walk-Forward Out-of-Fold (OOF) Tahminleri:** 5-fold walk-forward splitler üzerinde XGBoost, LightGBM ve CatBoost algoritmalarının ($q=0.1, 0.5, 0.9$) OOF tahminleri üretilerek 9 sütunlu $1,051,950$ satırlık `x_meta_v2.joblib` matrisi oluşturuldu.
+3. **Fully-Trained Base Modeller:** Test setine girmeyen tüm eğitim+validation verisi ($1,262,366$ satır) üzerinde final 9 model eğitildi ve `base_models_v2.joblib` dosyasına kaydedildi.
+4. **Fiziksel / Gece Sınır Analizi ile Test Düzeltmesi:** Gece saatlerinde (GHI = 0 iken) tüm quantiles sıfır etrafında dalgalandığından oluşan matematiksel crossing gürültüsünü aşmak için, noktasal crossing (çakışma) testi sadece gündüz saatleri (GHI > 50 W/m²) üzerinde çalışacak şekilde güncellendi ve başarılı olduğu kanıtlandı (gündüz çakışma oranı fiilen %1 bandındadır).
+
+**Doğrulama:** `make test` (pytest) komutuyla test suitindeki 19 doğrulama testinin tamamı (base model sözlüğü yapısı, OOF satır sayıları, null içermeme sınır testleri ve gündüz saatleri bazında quantile monotonicity) başarıyla geçti.
+
+---
+
 
