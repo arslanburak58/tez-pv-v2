@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Veri ve modeller
+data/raw/**/*
+!data/raw/**/.gitkeep
+data/processed/**/*
+!data/processed/.gitkeep
+results/**/*.joblib
+results/**/*.parquet
+results/figures/**/*.png
+results/figures/**/*.pdf
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Loglar
+*.log
+logs/
+
+# Streamlit
+.streamlit/secrets.toml

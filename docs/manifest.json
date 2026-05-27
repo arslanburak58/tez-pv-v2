@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "created": "2026-05-27",
+  "datasets": {
+    "dkasc_alice_springs": {
+      "raw_path": "data/raw/dkasc/",
+      "period": "2010-01-01 / 2022-12-31",
+      "frequency": "hourly",
+      "capacity_kW": "TBD_in_stage2",
+      "lat": -23.762,
+      "lon": 133.875,
+      "tz": "Australia/Darwin"
+    },
+    "pvod_v1": {
+      "raw_path": "data/raw/pvod/datasets/",
+      "stations": ["station00", "station01", "station02", "station03", "station04",
+                   "station05", "station06", "station07", "station08", "station09"],
+      "period": "2018-08-15 / 2019-...",
+      "frequency": "15min",
+      "tz": "Asia/Shanghai"
+    }
+  },
+  "splits": {
+    "holdout_stations": ["station02", "station09"],
+    "training_stations": ["dkasc_alice_springs", "station00", "station01",
+                          "station03", "station04", "station05", "station06",
+                          "station07", "station08"]
+  },
+  "decisions": "see docs/methodology_decisions.md"
+}
