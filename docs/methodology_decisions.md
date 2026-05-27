@@ -115,3 +115,28 @@ preds = pd.DataFrame(preds_sorted, columns=['q_0.1', 'q_0.5', 'q_0.9'])
 - Burst: 1, 6, 24 saatlik ardışık pencereler
 - Sensör-özel: G, T_amb, RH ayrı ayrı
 **Toplam:** 9 senaryo (4+3+2 sensör için top farkı). Her birinde model degradation ölçülür.
+
+---
+
+## Karar 10: Güneş Işınımı (GHI) Aşırı Işınım Eşik Sınır Kontrolü ve Zaman Serisi İmpütasyonu
+
+**Tarih:** 2026-05-27
+**Bağlam:** DKASC ve PVOD veri tabanlarında, yeryüzünde fiziksel olarak gözlemlenmesi imkansız olan aşırı yüksek güneş ışınımı pikleri (>2000 W/m² ve hatta 2725.61 W/m² gibi) saptanmıştır. Bu gürültüler, bulut yansıması (cloud enhancement) gibi gerçek fiziksel sınırların (~1500 W/m²) çok ötesinde olup, doğrudan pyranometre kalibrasyon/ölçüm hatalarını göstermektedir. Bu hatalar, STAGE-3'te hesaplanacak olan clear-sky index ($k_t$) gibi fiziksel türevlerin patlamasına (sonsuz/anormal değerler almasına) neden olmaktadır.
+**Karar:** 
+- $1500 \text{ W/m}^2$ değeri aşırı ışınım (over-irradiance) için fiziksel üst sınır olarak tanımlanmış (BSRN standartları); bu sınırın üzerindeki ve sıfırın altındaki (GHI < -50) tüm ölçümler **geçersiz veri (NaN)** olarak işaretlenmiştir.
+- Serinin zamansal sürekliliğini ve diürnal (günlük) solar eğri yapısını bozmamak için bu pencereler **ileri ve geri geçerli ölçümler arasında zaman serisi doğrusal enterpolasyonu (time-series linear interpolation)** yöntemiyle tahmin edilerek yeniden doldurulmuştur.
+- Düzeltilen tüm gözlemler `GHI_is_missing = True` olarak bayraklanarak veri şeffaflığı korunmuştur.
+**Akademik Gerekçe & Kanıtlar:**
+- Basit üst sınır kırpması (hard-clipping) yöntemi, zaman serisi üzerinde yapay düzlükler (flat plateaus) yaratarak ışınımın türevsel değişimlerini (volatilite ve solar eğim) bozmaktadır. Zaman serisi doğrusal enterpolasyonu ise serinin fiziki eğrisini korur.
+- Ham verideki 2012-12-14 02:10 UTC'de ölçülen 2725.61 W/m²'lik aşırı uç gürültüsü, komşu değerlerin diürnal trendine uyumlu olarak **869.61 W/m²** olarak enterpole edilmiş ve `GHI_is_missing = True` olarak başarıyla bayraklanmıştır.
+- Toplam 1.36 milyon satırlık DKASC veri tabanında, 1500 W/m² üzerindeki aykırı değer sıklığının sadece %0.0009 (13 satır) olduğu saptanmıştır. Bu derece nadir olan gürültülerin enterpolasyonu, veri temsil gücünü etkilememiş, fiziksel kararlılığı artırmıştır.
+
+---
+
+## Karar 11: PVOD Station 04 Nominal Kurulu Güç (Capacity) Hatasının Gözlem Tabanlı Düzeltilmesi
+
+**Tarih:** 2026-05-27
+**Bağlam:** PVOD `metadata.csv` dosyasında `station04` nominal gücü 20,000 kW (20 MW) olarak belirtilmiştir. Ancak istasyonun anlık güç üretimi incelendiğinde, yıl boyunca 1578 satırda (tüm gözlemlerin %4.72'si) gücün 20 MW'ı aştığı, 716 satırda 22 MW'ı geçtiği ve maksimum üretimin **26.77 MW**'a ulaştığı görülmüştür.
+**Karar:** Nominal kapasite değerinin hatalı girildiği veya DC panel kapasitesinin (25 MW) göz ardı edildiği tespit edilmiş; `station04` nominal kapasitesi **25,000 kW (25 MW)** olarak güncellenmiştir.
+**Gerekçe:** Güç normalizasyonunda (`y_norm = power_kW / capacity_kW`) payda değerinin yapay olarak küçük olması, kapasite faktörünün %134 gibi fiziksel olmayan sınırlara fırlamasına neden olmakta ve multi-plant transfer performansını bozmaktadır. Düzeltme sonrası, maksimum kapasite faktörü %1.07 (makul inverter overload ve bulut yansıması payı) seviyesine çekilerek fiziksel sınırlar korunmuştur.
+
