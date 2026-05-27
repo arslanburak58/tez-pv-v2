@@ -121,9 +121,9 @@ def process_dkasc() -> pd.DataFrame:
     })
     
     # 3. Anormal Değerleri Temizleme (Outlier Filtering)
-    # GHI: < -50 veya > 3000 -> NaN
-    df.loc[(df["GHI"] < -50) | (df["GHI"] > 3000), "GHI"] = np.nan
-    df["GHI"] = df["GHI"].clip(lower=0, upper=1500) # Fiziksel limit [0, 1500] ile clip et (Spike filtreleme)
+    # GHI: < -50 veya > 1500 -> NaN (Fiziksel Eşik Testi - BSRN standartlarına göre over-irradiance sınırı)
+    df.loc[(df["GHI"] < -50) | (df["GHI"] > 1500), "GHI"] = np.nan
+    df["GHI"] = df["GHI"].clip(lower=0) # Sadece negatif gece sapmalarını 0'a çek
     
     # T_amb: < -20 veya > 60 -> NaN (Sensör arızası -39.99'lar buraya girer)
     df.loc[(df["T_amb"] < -20) | (df["T_amb"] > 60), "T_amb"] = np.nan
@@ -135,7 +135,7 @@ def process_dkasc() -> pd.DataFrame:
     # power_kW: Negatif değerleri 0'a çek
     df["power_kW"] = df["power_kW"].clip(lower=0)
     
-    # 4. Eksiklik Bayraklarını (Missingness Flags) Oluştur
+    # 4. Eksiklik Bayraklarını (Missingness Flags) Oluştur (Eşik outlier'ları da burada True olur)
     df["GHI_is_missing"] = df["GHI"].isna()
     df["T_amb_is_missing"] = df["T_amb"].isna()
     df["RH_is_missing"] = df["RH"].isna()
@@ -244,14 +244,20 @@ def process_pvod() -> list[pd.DataFrame]:
         df["y_norm"] = df["power_kW"] / cap_kW
         df["y_norm"] = df["y_norm"].clip(lower=0.0, upper=1.5)
         
-        # 5. Meteorolojik Sınır Kontrolleri ve Temizlik (PVOD verisi genellikle null barındırmaz)
-        df["GHI"] = df["GHI"].clip(lower=0.0, upper=1500.0) # Fiziksel limit [0, 1500] ile clip et (Spike filtreleme)
-        df["RH"] = df["RH"].clip(lower=0.0, upper=100.0)
+        # 5. Meteorolojik Sınır Kontrolleri ve Temizlik (Outlier Filtreleme ve Enterpolasyon)
+        # GHI > 1500 veya < 0 -> NaN (BSRN standartlarına göre over-irradiance testi)
+        df.loc[(df["GHI"] < 0) | (df["GHI"] > 1500), "GHI"] = np.nan
+        df.loc[(df["RH"] < 0) | (df["RH"] > 100), "RH"] = np.nan
         
-        # Eksiklik Bayraklarını Oluştur (PVOD temiz olduğundan hepsi False olacaktır)
-        df["GHI_is_missing"] = False
-        df["T_amb_is_missing"] = False
-        df["RH_is_missing"] = False
+        # Eksiklik Bayraklarını Oluştur (Outlier'lar burada True olarak yakalanır)
+        df["GHI_is_missing"] = df["GHI"].isna()
+        df["T_amb_is_missing"] = df["T_amb"].isna()
+        df["RH_is_missing"] = df["RH"].isna()
+        
+        # Zaman Serisi Enterpolasyonu (İleri ve geri değerlerle doldurma)
+        df["GHI"] = df["GHI"].interpolate(method="linear").ffill().bfill()
+        df["T_amb"] = df["T_amb"].interpolate(method="linear").ffill().bfill()
+        df["RH"] = df["RH"].interpolate(method="linear").ffill().bfill()
         
         # Sabit Sütunları Ekle
         df["station_id"] = st_id
