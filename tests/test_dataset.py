@@ -40,7 +40,7 @@ def test_combined_dataset_structure() -> None:
     # Veri tiplerinin doğruluğunu test et
     assert pd.api.types.is_datetime64_any_dtype(df["timestamp"]), "timestamp sütunu datetime tipinde olmalıdır."
     assert df["timestamp"].dt.tz is not None, "timestamp sütunu timezone-aware (tz-aware) olmalıdır."
-    assert df["timestamp"].dt.tz.zone == "UTC", "timestamp sütunu UTC zaman diliminde olmalıdır."
+    assert str(df["timestamp"].dt.tz) in ["UTC", "UTC+00:00"], "timestamp sütunu UTC zaman diliminde olmalıdır."
     
     # İstasyonları doğrula (station02 ve station09 kesinlikle bulunmamalı)
     station_ids = df["station_id"].unique()
@@ -84,4 +84,4 @@ def test_holdout_datasets() -> None:
         # Zaman damgasını kontrol et
         assert pd.api.types.is_datetime64_any_dtype(df["timestamp"])
         assert df["timestamp"].dt.tz is not None
-        assert df["timestamp"].dt.tz.zone == "UTC"
+        assert str(df["timestamp"].dt.tz) in ["UTC", "UTC+00:00"]

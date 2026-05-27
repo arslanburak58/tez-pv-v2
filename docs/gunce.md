@@ -1,8 +1,8 @@
-## 2026-05-27 — STAGE-3 Fiziksel Öznitelik Mühendisliği Tamamlandı
+## 2026-05-27 — STAGE-4 Walk-Forward Split Tamamlandı
 
-**>>> DEVAM KOMUTU: Yeni konuşmayı "STAGE-4 zaman serisi split'lerine başlıyoruz" ile başlat <<<**
+**>>> DEVAM KOMUTU: Yeni konuşmayı "STAGE-5 model eğitimlerine başlıyoruz" ile başlat <<<**
 
-Aktif adım    : STAGE-3 (tamamlandı), STAGE-4 bekleniyor
+Aktif adım    : STAGE-4 (tamamlandı), STAGE-5 bekleniyor
 Aktif model   : Gemini 1.5 Pro (Antigravity M4 stack)
 Son güncelleme: 2026-05-27
 Tıkanıklık    : Yok
@@ -28,11 +28,11 @@ Tamamlanan (bu oturumda):
 - v1'den dersler lessons_learned.md'ye aktarıldı
 - STAGE-2 tamamlandı: Birleşik dataset_v2.parquet ve holdout istasyonları oluşturuldu, rüzgar hızı başarıyla çıkarıldı.
 - STAGE-3 tamamlandı: pvlib ile fiziksel öznitelik mühendisliği, Ross T_cell, LST-bazlı Saat Açısı ve yerel saat sin/cos zaman değişkenleri hesaplandı.
+- STAGE-4 tamamlandı: İstasyon bazlı örnekleme sıklığına göre (DKASC=288, PVOD=96) dinamik 24 saatlik boşluklu ve holdout izolasyonlu 5-Fold Walk-Forward Split indeksleri üretilerek joblib olarak kaydedildi.
 
 Açık görevler:
-- STAGE-4: Walk-Forward CV splits (n_splits=5, gap=24*4) setup.
-- Holdout istasyonlarının eğitim splitlerinden kesinlikle izole edilmesi.
-- Splits index'lerinin joblib olarak kaydedilmesi ve zaman boşluğunun (leakage-safe gap) doğrulanması.
+- STAGE-5: Base Learner (XGBoost, LightGBM, CatBoost) x 3 Quantile (0.1, 0.5, 0.9) model eğitimleri.
+- Out-of-fold (OOF) base model tahmin matrisinin oluşturulması (`x_meta_v2.joblib`).
 
 Sistem:
 - claude.ai Projects → düşünme, yazım, karar

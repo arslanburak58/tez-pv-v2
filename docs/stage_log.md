@@ -61,4 +61,25 @@ Her stage tamamlandığında: tarih, ne yapıldı, çıktılar, doğrulama.
 
 ---
 
+## 2026-05-27 STAGE-4 — Walk-Forward Split + Holdout İzolasyonu ✓
+
+**Dosyalar:**
+- `data/processed/splits.joblib` (Fold train/val ve global test indeksleri)
+- `scripts/split_dataset.py` (İstasyon bazlı bağımsız bölünme oluşturucu)
+- `tests/test_splits.py` (Bölünme doğrulama testleri)
+- `Makefile` (Entegrasyon güncellendi)
+
+**Yapılan İşlemler:**
+1. **İstasyon Bazlı Zaman Serisi Bölümleme:** İstasyonların farklı örnekleme sıklıkları ve tarih aralıkları göz önüne alınarak bağımsız kronolojik sıralama yapıldı.
+2. **Global Test Seti İzolasyonu:** Her istasyonun son %20'lik dilimi kendi kronolojik geleceği olarak ayrıldı ve global `test_indices` listesinde birleştirildi.
+3. **Dinamik Gap Yapılandırmalı Çapraz Doğrulama (TimeSeriesSplit):** İlk %80'lik eğitim/doğrulama diliminde 5-fold TimeSeriesSplit uygulandı. Örnekleme sıklığına bağlı olarak 24 saatlik güvenlik boşluğu (gap) dinamik olarak set edildi:
+   - DKASC (5-dk sıklık): `gap = 288`
+   - PVOD (15-dk sıklık): `gap = 96`
+4. **Sızıntı (Leakage) Engelleme:** İndeksler arasında sıfır çakışma (disjoint indices) sağlandı.
+5. **Holdout Tam İzolasyonu:** `station02` ve `station09` verilerinin bölünmelere girmesi kesin olarak engellendi.
+
+**Doğrulama:** `make test` (pytest) komutuyla test suitindeki 15 doğrulama testinin tamamı (tam veri kapsama, sıfır sızıntı çakışması, her istasyon için en az 24 saatlik gap garantisi ve holdout izolasyonu) başarıyla geçti.
+
+---
+
 

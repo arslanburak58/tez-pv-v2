@@ -1,10 +1,11 @@
-.PHONY: help sync-data dataset features train-base train-meta optuna robustness baselines evaluate demo clean test lint
+.PHONY: help sync-data dataset features splits train-base train-meta optuna robustness baselines evaluate demo clean test lint
 
 help:
 	@echo "Pipeline komutları:"
 	@echo "  make sync-data     - v1'den ham veriyi kopyala"
 	@echo "  make dataset       - Veri seti oluştur (normalize, split, flags)"
 	@echo "  make features      - pvlib fiziksel öznitelikleri üret"
+	@echo "  make splits        - Zaman serisi cv split'lerini üret"
 	@echo "  make train-base    - 9 base modeli eğit"
 	@echo "  make train-meta    - QuantileRegressor meta-öğrenici eğit"
 	@echo "  make optuna        - Hiperparametre optimizasyonu"
@@ -30,6 +31,9 @@ dataset:
 features:
 	python scripts/build_features.py
 
+splits:
+	python scripts/split_dataset.py
+
 train-base:
 	python scripts/train_base_models.py
 
@@ -51,7 +55,7 @@ evaluate:
 demo:
 	streamlit run app/app.py
 
-all: dataset features train-base train-meta optuna robustness baselines evaluate
+all: dataset features splits train-base train-meta optuna robustness baselines evaluate
 	@echo "Pipeline tamamlandı."
 
 test:
