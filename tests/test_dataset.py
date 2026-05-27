@@ -70,7 +70,7 @@ def test_holdout_datasets() -> None:
             "timestamp", "station_id", "lat", "lon", "capacity_kW", "power_kW", "y_norm",
             "GHI", "T_amb", "RH", "GHI_is_missing", "T_amb_is_missing", "RH_is_missing"
         }
-        assert set(df.columns) == expected_cols
+        assert expected_cols.issubset(df.columns)
         assert "WS" not in df.columns
         
         # İstasyon ID'sini doğrula

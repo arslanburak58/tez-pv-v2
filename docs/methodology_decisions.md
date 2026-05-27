@@ -140,3 +140,18 @@ preds = pd.DataFrame(preds_sorted, columns=['q_0.1', 'q_0.5', 'q_0.9'])
 **Karar:** Nominal kapasite değerinin hatalı girildiği veya DC panel kapasitesinin (25 MW) göz ardı edildiği tespit edilmiş; `station04` nominal kapasitesi **25,000 kW (25 MW)** olarak güncellenmiştir.
 **Gerekçe:** Güç normalizasyonunda (`y_norm = power_kW / capacity_kW`) payda değerinin yapay olarak küçük olması, kapasite faktörünün %134 gibi fiziksel olmayan sınırlara fırlamasına neden olmakta ve multi-plant transfer performansını bozmaktadır. Düzeltme sonrası, maksimum kapasite faktörü %1.07 (makul inverter overload ve bulut yansıması payı) seviyesine çekilerek fiziksel sınırlar korunmuştur.
 
+---
+
+## Karar 12: İstasyon Bazlı Yerel Standart Saat Dilimiyle Cyclical (Döngüsel) Zaman Hizalaması
+
+**Tarih:** 2026-05-27
+**Bağlam:** Çoklu istasyon içeren modellerde (multi-plant transfer learning), zaman tabanlı diürnal değişimlerin (saatlik güneş seyri) tüm istasyonlar bazında tutarlı olarak hizalanması gerekir. Eğer döngüsel saat ve ay öznitelikleri (hour_sin/cos) ham UTC saatine göre hesaplanırsa:
+- DKASC (Avustralya, UTC+9.5) için local saat 12:00 (solar öğle) iken, UTC saati 02:30'dur.
+- PVOD (Çin, UTC+8) için local saat 12:00 iken, UTC saati 04:00'tür.
+Bu durumda, her iki santralde de "güneşin tepe noktasında olduğu ve üretimin en yüksek olduğu" öğle vakti model için farklı sin/cos özniteliklerine denk gelecek ve modelin genelleme (transfer) yeteneğini zayıflatacaktır.
+**Karar:** 
+- Döngüsel zaman özniteliklerinin (hour_sin, hour_cos, month_sin, month_cos) hesaplanmasından önce `timestamp` zaman damgası istasyonların kendi yerel standart saat dilimlerine (`Australia/Darwin` ve `Asia/Shanghai`) dönüştürülmüştür.
+- Bu dönüşüm sonrası elde edilen yerel saat (`local_hour`) ve yerel ay (`local_month`) üzerinden trigonometrik döngüsel öznitelikler üretilmiştir.
+**Gerekçe:** Bu hizalama sayesinde yerel saat dilimine göre öğle vakti (12:00) tüm istasyonlar için tamamen aynı döngüsel değerleri alacaktır. Böylece, gradient-boosting tabanlı base learner'lar ve meta-öğrenici, coğrafi konumdan bağımsız olarak "öğle vakti" davranışlarını tek bir ortak fiziksel örüntü üzerinden öğrenebilecek, genelleme ve multi-plant transfer başarısı maksimize edilecektir.
+
+
