@@ -123,7 +123,7 @@ def process_dkasc() -> pd.DataFrame:
     # 3. Anormal Değerleri Temizleme (Outlier Filtering)
     # GHI: < -50 veya > 3000 -> NaN
     df.loc[(df["GHI"] < -50) | (df["GHI"] > 3000), "GHI"] = np.nan
-    df["GHI"] = df["GHI"].clip(lower=0)
+    df["GHI"] = df["GHI"].clip(lower=0, upper=1500) # Fiziksel limit [0, 1500] ile clip et (Spike filtreleme)
     
     # T_amb: < -20 veya > 60 -> NaN (Sensör arızası -39.99'lar buraya girer)
     df.loc[(df["T_amb"] < -20) | (df["T_amb"] > 60), "T_amb"] = np.nan
@@ -194,6 +194,11 @@ def process_pvod() -> list[pd.DataFrame]:
     for _, row in tqdm(df_meta.iterrows(), total=len(df_meta), desc="PVOD İstasyonları"):
         st_id = row["Station_ID"]
         cap_kW = float(row["Capacity"])
+        
+        # station04 kapasite düzeltmesi (ham veride yıl boyu >20 MW değerler var, gerçek kapasite 25 MW)
+        if st_id == "station04":
+            cap_kW = 25000.0
+            
         lat = float(row["Latitude"])
         lon = float(row["Longitude"])
         
@@ -240,7 +245,7 @@ def process_pvod() -> list[pd.DataFrame]:
         df["y_norm"] = df["y_norm"].clip(lower=0.0, upper=1.5)
         
         # 5. Meteorolojik Sınır Kontrolleri ve Temizlik (PVOD verisi genellikle null barındırmaz)
-        df["GHI"] = df["GHI"].clip(lower=0.0, upper=3000.0)
+        df["GHI"] = df["GHI"].clip(lower=0.0, upper=1500.0) # Fiziksel limit [0, 1500] ile clip et (Spike filtreleme)
         df["RH"] = df["RH"].clip(lower=0.0, upper=100.0)
         
         # Eksiklik Bayraklarını Oluştur (PVOD temiz olduğundan hepsi False olacaktır)
