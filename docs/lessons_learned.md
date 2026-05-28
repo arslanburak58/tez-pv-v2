@@ -61,3 +61,14 @@ Bu dosya v2'de tekrarlanmaması gereken hataları tutar.
 
 **Hata:** Bir aşamada problem çıkınca "şimdilik geç, sonra dönerim" → asla geri dönülmedi, sorun büyüdü.
 **Çözüm (v2):** Her aşamanın "Tamamlandı kriteri" var, sağlanmadan sonraki başlamaz.
+
+---
+
+## Ders 9: Yapay Kapsama Oranı (All-Hours Coverage) Tuzağı
+
+**Hata:** Gece/sıfır-üretim saatlerini (%100 doğru tahmin edilen) değerlendirmeye dahil ederek elde edilen %80.19'luk all-hours coverage oranını yanıltıcı bir nihai başarı ölçütü olarak çerçevelemek.
+**Sonuç:** Modelin aktif gündüz/üretim saatlerindeki gerçek fiziksel kapsama performansının yetersizliği (%65.20) maskelenmekte ve tez metninde akademik olarak zayıf/tehlikeli bir argüman oluşmaktadır.
+**Çözüm (v2):** 
+1. Akademik dürüstlük ve teknik doğruluk açısından nihai performans metriği olarak **yalnızca aktif gündüz/üretim saatlerindeki (daylight/production hours) kapsama oranını** hedef almak.
+2. STAGE-7 Optuna optimizasyonunda hiperparametreleri sadece pinball loss'a göre değil, **aktif üretim saatlerindeki kapsama oranını %80'e yaklaştıracak biçimde** optimize etmek.
+
