@@ -79,4 +79,63 @@ hi = preds_df['q_0.9'].values
 y = actual_ser.values
 total_coverage = ((y >= lo) & (y <= hi)).mean()
 
+# Gündüz/Üretim saatleri için birleşik hesaplama
+all_daylight_actuals = []
+all_daylight_preds = []
+pvod_daylight_actuals = []
+pvod_daylight_preds = []
+
+for st_id in stations:
+    st_data = df[df['station_id'] == st_id].copy()
+    st_test = st_data[st_data.index.isin(test_indices)].copy()
+    if len(st_test) == 0:
+        continue
+        
+    meta_cols = {}
+    for algo in ['lgbm', 'catboost', 'xgboost']:
+        for q in [0.1, 0.5, 0.9]:
+            col = f"{algo}_q{int(round(q*10)):02d}"
+            meta_cols[col] = bm[col].predict(st_test[feature_cols])
+            
+    x_meta = pd.DataFrame(meta_cols, index=st_test.index)
+    x_meta_full = pd.concat([x_meta, st_test[flag_cols]], axis=1)
+    
+    X_arr = x_meta_full.astype(float).values
+    preds_dict = {}
+    for q in [0.1, 0.5, 0.9]:
+        m = mm['models'][q]
+        preds_dict[f"q_{q}"] = X_arr @ m.coef_ + m.intercept_
+    preds = pd.DataFrame(preds_dict, index=st_test.index)
+    
+    vals_sorted = np.sort(preds[['q_0.1', 'q_0.5', 'q_0.9']].values, axis=1)
+    preds['q_0.1'], preds['q_0.5'], preds['q_0.9'] = vals_sorted[:, 0], vals_sorted[:, 1], vals_sorted[:, 2]
+    
+    dl = st_test['cos_zenith'] > 0.087
+    pos = st_test['y_norm'] > 0
+    test_filter = dl & pos
+    
+    st_actual_dl = st_test.loc[test_filter, 'y_norm'].values
+    st_pred_dl = preds.loc[test_filter].values
+    
+    if len(st_actual_dl) > 0:
+        all_daylight_actuals.append(st_actual_dl)
+        all_daylight_preds.append(st_pred_dl)
+        if st_id != 'dkasc_alice_springs':
+            pvod_daylight_actuals.append(st_actual_dl)
+            pvod_daylight_preds.append(st_pred_dl)
+
+daylight_actual_arr = np.concatenate(all_daylight_actuals)
+daylight_preds_arr = np.concatenate(all_daylight_preds)
+daylight_preds_df = pd.DataFrame(daylight_preds_arr, columns=['q_0.1', 'q_0.5', 'q_0.9'])
+total_daylight_coverage = ((daylight_actual_arr >= daylight_preds_df['q_0.1'].values) & 
+                           (daylight_actual_arr <= daylight_preds_df['q_0.9'].values)).mean()
+
+pvod_daylight_actual_arr = np.concatenate(pvod_daylight_actuals)
+pvod_daylight_preds_arr = np.concatenate(pvod_daylight_preds)
+pvod_daylight_preds_df = pd.DataFrame(pvod_daylight_preds_arr, columns=['q_0.1', 'q_0.5', 'q_0.9'])
+pvod_daylight_coverage = ((pvod_daylight_actual_arr >= pvod_daylight_preds_df['q_0.1'].values) & 
+                          (pvod_daylight_actual_arr <= pvod_daylight_preds_df['q_0.9'].values)).mean()
+
 print(f"Toplam Test Seti Kapsama Oranı (TÜM SAATLER - GECE DAHİL) (Ağırlıksız): {total_coverage * 100:.2f}%")
+print(f"Toplam Test Seti Gündüz/Üretim Saatleri Kapsama Oranı (Ağırlıksız): {total_daylight_coverage * 100:.2f}%")
+print(f"PVOD (Hebei - 8 Santral Ortalaması) Gündüz/Üretim Saatleri Kapsama Oranı (Ağırlıksız): {pvod_daylight_coverage * 100:.2f}%")

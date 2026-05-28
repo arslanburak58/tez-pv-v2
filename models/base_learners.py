@@ -83,6 +83,8 @@ def train_base_learner(
             n_estimators=cfg["n_estimators"],
             learning_rate=cfg["learning_rate"],
             max_depth=cfg["max_depth"],
+            num_leaves=cfg.get("num_leaves", 31),
+            min_child_samples=cfg.get("min_child_samples", 20),
             random_state=cfg["random_state"],
             verbose=-1,
         )
@@ -96,6 +98,7 @@ def train_base_learner(
             n_estimators=cfg["n_estimators"],
             learning_rate=cfg["learning_rate"],
             max_depth=cfg["max_depth"],
+            l2_leaf_reg=cfg.get("l2_leaf_reg", 3),
             random_seed=seed,
             verbose=0,
         )
@@ -106,6 +109,8 @@ def train_base_learner(
             n_estimators=cfg["n_estimators"],
             learning_rate=cfg["learning_rate"],
             max_depth=cfg["max_depth"],
+            subsample=cfg.get("subsample", 1.0),
+            colsample_bytree=cfg.get("colsample_bytree", 1.0),
             random_state=cfg["random_state"],
             objective=XGBoostPinballObj(q),
         )
