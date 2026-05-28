@@ -277,15 +277,53 @@ def process_pvod() -> list[pd.DataFrame]:
     return station_dfs
 
 
+def resample_dkasc_to_15min(df_dkasc: pd.DataFrame) -> pd.DataFrame:
+    """DKASC 5-min → 15-min downsample (3 örnek ortalaması).
+
+    Güç ve meteorolojik değerler ortalanır. Kümülatif değer yok.
+    """
+    df = df_dkasc.set_index('timestamp').sort_index()
+    # Sayısal sütunları ortala
+    numeric_cols = df.select_dtypes(include='number').columns
+    df_15 = df[numeric_cols].resample('15min').mean()
+    
+    # station_id ve is_missing flag'lerini düzgün geri ekle
+    df_15['station_id'] = 'dkasc_alice_springs'
+    
+    # Boolean (is_missing) flag'leri resample sonrası tekrar True/False yap
+    for col in ['GHI_is_missing', 'T_amb_is_missing', 'RH_is_missing']:
+        if col in df.columns:
+            # Resample sonrası max() kullanarak eğer 15 dk içinde herhangi bir 5 dk eksikse True yap
+            df_15[col] = df[col].resample('15min').max().astype(bool)
+            
+    df_15 = df_15.dropna(subset=['power_kW', 'y_norm'])  # boş 15-min aralıkları at
+    return df_15.reset_index()
+
+
+def add_sample_weights(df: pd.DataFrame) -> pd.DataFrame:
+    """İstasyon-bazlı ters-frekans ağırlık.
+
+    w_i = (1/n_station) normalize edilmiş → mean(w)=1
+    """
+    counts = df['station_id'].value_counts()
+    w = df['station_id'].map(lambda s: 1.0 / counts[s])
+    df['sample_weight'] = w / w.mean()
+    return df
+
+
 def main() -> None:
     """ETL boru hattını çalıştırır, holdout'ları ayırır ve birleşik dataset'i kaydeder."""
     # 1. DKASC verilerini işle
-    df_dkasc = process_dkasc()
+    df_dkasc_raw = process_dkasc()
+    
+    # Downsample DKASC 5-min → 15-min (DÜZELTME 1)
+    df_dkasc = resample_dkasc_to_15min(df_dkasc_raw)
+    print(f"DKASC 15-min downsample tamamlandı. Satır sayısı: {len(df_dkasc_raw)} -> {len(df_dkasc)}")
     
     # 2. PVOD verilerini işle
     pvod_dfs = process_pvod()
     
-    # 3. Holdout İstasyonlarını Ayır ve Kaydet
+    # 3. Holdout İstasyonlarını Ayır ve Kaydet (Holdout istasyonları resample/weight'ten etkilenmez!)
     train_pvod_dfs = []
     
     for df in pvod_dfs:
@@ -301,6 +339,9 @@ def main() -> None:
     print("Eğitim veri kümesi birleştiriliyor...")
     all_train_dfs = [df_dkasc] + train_pvod_dfs
     df_train = pd.concat(all_train_dfs, ignore_index=True)
+    
+    # Ters-frekans örneklem ağırlıklandırması ekle (DÜZELTME 2)
+    df_train = add_sample_weights(df_train)
     
     # Sıralama: timestamp bazında ve ardından station_id bazında sıralı tutalım
     df_train = df_train.sort_values(["timestamp", "station_id"]).reset_index(drop=True)
@@ -320,3 +361,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

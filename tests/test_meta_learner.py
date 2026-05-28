@@ -1,4 +1,4 @@
-"""STAGE-6 Test Paketi: Meta-Learner QuantileRegressor."""
+"""STAGE-6 Test Paketi: Meta-Learner FastQuantileRegressor (PyTorch tabanlı)."""
 
 import pathlib
 import numpy as np
@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from models.meta_learner import (
+    FastQuantileRegressor,
     train_meta_learner,
     predict_intervals,
     compute_coverage,
@@ -19,7 +20,7 @@ from models.meta_learner import (
 
 @pytest.fixture
 def dummy_data():
-    """Küçük sentetik OOF verisi (gün ışığı pattern'i simüle)."""
+    """Küçük sentetik OOF verisi."""
     rng = np.random.default_rng(42)
     n = 500
     x = pd.DataFrame(
@@ -56,9 +57,9 @@ class TestTrainMetaLearner:
             assert hasattr(mdl, "coef_"), f"q={q} modeli fit edilmemiş"
             assert mdl.coef_.shape == (x.shape[1],)
 
-    def test_custom_alpha_accepted(self, dummy_data):
+    def test_custom_iter_accepted(self, dummy_data):
         x, y = dummy_data
-        models = train_meta_learner(x, y, alpha=0.01)
+        models = train_meta_learner(x, y, max_iter=10)
         assert len(models) == 3
 
 
@@ -78,15 +79,12 @@ class TestPredictIntervals:
         assert (preds["q_0.5"] <= preds["q_0.9"]).all(), "q_0.5 > q_0.9 crossing var!"
 
     def test_no_enforce_may_have_crossing(self, dummy_data):
-        """enforce_monotonicity=False durumunda crossing teorik olarak mümkündür."""
         x, y = dummy_data
         models = train_meta_learner(x, y)
-        # Sadece çalışıp çalışmadığını test et (assert crossing beklenmez ama hata da olmamalı)
         preds = predict_intervals(models, x, enforce_monotonicity=False)
         assert preds.shape == (len(x), 3)
 
     def test_predictions_bounded(self, dummy_data):
-        """Tahminler saçma değerler üretmemeli (çok büyük negatif vs.)."""
         x, y = dummy_data
         models = train_meta_learner(x, y)
         preds = predict_intervals(models, x)

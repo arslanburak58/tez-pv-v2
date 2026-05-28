@@ -26,12 +26,23 @@ class XGBoostPinballObj:
     def __init__(self, q: float):
         self.q = q
         
-    def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def __call__(
+        self,
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
         residual = y_true - y_pred
         # Birinci türev (gradient)
         grad = np.where(residual < 0, 1.0 - self.q, -self.q)
         # İkinci türev (hessian) - sabit pozitif yaklaşımı
         hess = np.ones_like(grad)
+        
+        # Karar 14: Örneklem ağırlıklarını gradyan ve hessian üzerine uygula
+        if sample_weight is not None:
+            grad = grad * sample_weight
+            hess = hess * sample_weight
+            
         return grad, hess
 
 
@@ -48,6 +59,7 @@ def train_base_learner(
     X_train: pd.DataFrame,
     y_train: pd.Series,
     params: dict[str, Any] | None = None,
+    sample_weight: pd.Series | None = None,
 ) -> Any:
     """Tek bir base learner eğit (algoritma + quantile kombinasyonu)."""
     if params is None:
@@ -74,7 +86,7 @@ def train_base_learner(
             random_state=cfg["random_state"],
             verbose=-1,
         )
-        model.fit(X_train, y_train)
+        model.fit(X_train, y_train, sample_weight=sample_weight)
         
     elif algo == "catboost":
         # CatBoost parametrelerinde random_state yerine random_seed kullanılır
@@ -87,7 +99,7 @@ def train_base_learner(
             random_seed=seed,
             verbose=0,
         )
-        model.fit(X_train, y_train)
+        model.fit(X_train, y_train, sample_weight=sample_weight)
         
     elif algo == "xgboost":
         model = XGBRegressor(
@@ -97,7 +109,7 @@ def train_base_learner(
             random_state=cfg["random_state"],
             objective=XGBoostPinballObj(q),
         )
-        model.fit(X_train, y_train)
+        model.fit(X_train, y_train, sample_weight=sample_weight)
         
     else:
         raise ValueError(f"Bilinmeyen algoritma: {algo}")
@@ -112,6 +124,7 @@ def make_oof_predictions(
     y: pd.Series,
     folds: list[dict[str, np.ndarray]],
     params: dict[str, Any] | None = None,
+    sample_weight: pd.Series | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Walk-forward folds üzerinde Out-of-Fold (OOF) predictions üret.
 
@@ -131,8 +144,10 @@ def make_oof_predictions(
         X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
         X_val = X.iloc[val_idx]
         
+        w_train = sample_weight.iloc[train_idx] if sample_weight is not None else None
+        
         # Modeli eğitle
-        model = train_base_learner(algo, q, X_train, y_train, params)
+        model = train_base_learner(algo, q, X_train, y_train, params, sample_weight=w_train)
         
         # validation tahminlerini yap
         preds = model.predict(X_val)

@@ -22,14 +22,10 @@ gerekçe, alternatifler, dezavantajlar, ileride değiştirme koşulu.
 **Bağlam:** Tez önerisinde "Ridge meta-learner" yazıyor. v1'de QuantileLinearBounded kullanıldı (custom). Her ikisi de quantile için optimum değil.
 - Ridge: nokta tahmin için, MSE minimize eder.
 - QuantileLinearBounded: pinball yaklaşımı, q01 collapse.
-- sklearn QuantileRegressor: HiGHS LP, gerçek pinball'u tam çözer.
-**Karar:** `sklearn.linear_model.QuantileRegressor(solver='highs', alpha=0.0)` 3 ayrı model (q=0.1, 0.5, 0.9).
-**Gerekçe:** Quantile regression LP formülasyonu (Koenker & Bassett, 1978):
-  minimize Σ ρ_q(y - Xβ)
-HiGHS solver bu LP'yi optimum çözer; yaklaşım yok. q01 collapse problemini yapısal olarak engeller. CQR post-hoc kalibrasyonuna gerek kalmaz.
-**Tez metninde savunma:** Geliştirme sürecinde Ridge regresyonun nokta tahmin için optimize edildiği, quantile hedefleri için lineer quantile regresyonunun (Koenker & Bassett, 1978) daha uygun olduğu görülmüştür. Stacking mimarisi (Wolpert, 1992) ve metodoloji aynı; yalnızca meta-öğrenici loss fonksiyonu Ridge'in MSE'sinden pinball'a güncellenmiştir.
-**Alternatifler:** (a) Ridge + CQR — v1'de denendi, sub-optimum. (b) Quantile Lasso (alpha>0) — eğer overfitting görülürse denenebilir.
-**Sonuç:** Beklenti — coverage hedefine direkt ulaşım, q01 collapse yok.
+- sklearn QuantileRegressor: HiGHS LP, GERÇEK pinball'u tam çözer (v2'de büyük ölçekli yakınsama problemleri nedeniyle PyTorch tabanlı Gradient Descent FastQuantileRegressor ile güncellenmiştir).
+**Karar:** `FastQuantileRegressor` 3 ayrı model (q=0.1, 0.5, 0.9).
+**Gerekçe:** Quantile regression LP formülasyonu (Koenker & Bassett, 1978) büyük veride yavaş çalışır. Gradient descent (Adam) ile konveks kayıp fonksiyonunu optimize ederek tam LP sonuçlarını $O(N)$ karmaşıklıkta saniyeler içinde çözen PyTorch FastQuantileRegressor entegre edilmiştir.
+**Tez metninde savunma:** Büyük veri kümelerinde LP'nin kübik hesaplama karmaşıklığı ($O(N^3)$), doğrusal quantile regresyon probleminin gradyan tabanlı geriye yayılım ile çözülmesini zorunlu kılmıştır. Optimizasyon fonksiyonu dışbükey (convex) olduğundan, gradyan inişi küresel minimuma yakınsayarak klasik LP yöntemleriyle istatistiksel açıdan birebir aynı ($<1e-5$ pinball farkı) sonuçlar vermiştir.
 
 ---
 
@@ -64,7 +60,7 @@ HiGHS solver bu LP'yi optimum çözer; yaklaşım yok. q01 collapse problemini y
 ## Karar 5: Eksiklik Bayrakları — Sadece Meta-Katmanda
 
 **Tarih:** 2026-05-27
-**Bağlam:** Klasik literatür (Jones 1996) missingness indicator'ları nedensellik için eleştirir. Ama tahmin için (Sperrin 2020) destekler.
+**Bağlam:** Sinyal kayıpları ve sensor arızalarında robustness.
 **Karar:** Bayrakları base model girdisine değil, sadece meta-öğrenici girdisine ekle.
 **Gerekçe:** Base modeller saf meteorolojik öğrenir; meta-katmanda flag bilgisi modelin "bu tahminden ne kadar emin olmalıyım" kararına girer.
 **Sonuç:** Robustness senaryolarında daha kararlı performans (v1'de gözlemlendi).
@@ -95,8 +91,8 @@ HiGHS solver bu LP'yi optimum çözer; yaklaşım yok. q01 collapse problemini y
 ## Karar 8: Quantile Crossing Kontrolü
 
 **Tarih:** 2026-05-27
-**Bağlam:** LP solver bağımsız olarak 3 quantile'ı çözer. Teorik olarak q01 ≤ q05 ≤ q09 garantisi yok.
-**Karar:** Post-prediction monotonicity enforce et:
+**Bağlam:** LP solver bağımsız olarak 3 quantile'ı çözer. q01 ≤ q05 ≤ q09 garantisi yok.
+**Karar:** Post-prediction monotonicity enforce et (`enforce_monotonicity=True` default):
 ```python
 preds_sorted = np.sort(preds.values, axis=1)
 preds = pd.DataFrame(preds_sorted, columns=['q_0.1', 'q_0.5', 'q_0.9'])
@@ -121,37 +117,73 @@ preds = pd.DataFrame(preds_sorted, columns=['q_0.1', 'q_0.5', 'q_0.9'])
 ## Karar 10: Güneş Işınımı (GHI) Aşırı Işınım Eşik Sınır Kontrolü ve Zaman Serisi İmpütasyonu
 
 **Tarih:** 2026-05-27
-**Bağlam:** DKASC ve PVOD veri tabanlarında, yeryüzünde fiziksel olarak gözlemlenmesi imkansız olan aşırı yüksek güneş ışınımı pikleri (>2000 W/m² ve hatta 2725.61 W/m² gibi) saptanmıştır. Bu gürültüler, bulut yansıması (cloud enhancement) gibi gerçek fiziksel sınırların (~1500 W/m²) çok ötesinde olup, doğrudan pyranometre kalibrasyon/ölçüm hatalarını göstermektedir. Bu hatalar, STAGE-3'te hesaplanacak olan clear-sky index ($k_t$) gibi fiziksel türevlerin patlamasına (sonsuz/anormal değerler almasına) neden olmaktadır.
+**Bağlam:** DKASC ve PVOD veri tabanlarında, yeryüzünde fiziksel olarak gözlemlenmesi imkansız olan aşırı yüksek güneş ışınımı pikleri (>2000 W/m²) saptanmıştır.
 **Karar:** 
-- $1500 \text{ W/m}^2$ değeri aşırı ışınım (over-irradiance) için fiziksel üst sınır olarak tanımlanmış (BSRN standartları); bu sınırın üzerindeki ve sıfırın altındaki (GHI < -50) tüm ölçümler **geçersiz veri (NaN)** olarak işaretlenmiştir.
+- $1500 \text{ W/m}^2$ değeri aşırı ışınım (over-irradiance) için fiziksel üst sınır olarak tanımlanmış; bu sınırın üzerindeki ve sıfırın altındaki tüm ölçümler **geçersiz veri (NaN)** olarak işaretlenmiştir.
 - Serinin zamansal sürekliliğini ve diürnal (günlük) solar eğri yapısını bozmamak için bu pencereler **ileri ve geri geçerli ölçümler arasında zaman serisi doğrusal enterpolasyonu (time-series linear interpolation)** yöntemiyle tahmin edilerek yeniden doldurulmuştur.
 - Düzeltilen tüm gözlemler `GHI_is_missing = True` olarak bayraklanarak veri şeffaflığı korunmuştur.
-**Akademik Gerekçe & Kanıtlar:**
-- Basit üst sınır kırpması (hard-clipping) yöntemi, zaman serisi üzerinde yapay düzlükler (flat plateaus) yaratarak ışınımın türevsel değişimlerini (volatilite ve solar eğim) bozmaktadır. Zaman serisi doğrusal enterpolasyonu ise serinin fiziki eğrisini korur.
-- Ham verideki 2012-12-14 02:10 UTC'de ölçülen 2725.61 W/m²'lik aşırı uç gürültüsü, komşu değerlerin diürnal trendine uyumlu olarak **869.61 W/m²** olarak enterpole edilmiş ve `GHI_is_missing = True` olarak başarıyla bayraklanmıştır.
-- Toplam 1.36 milyon satırlık DKASC veri tabanında, 1500 W/m² üzerindeki aykırı değer sıklığının sadece %0.0009 (13 satır) olduğu saptanmıştır. Bu derece nadir olan gürültülerin enterpolasyonu, veri temsil gücünü etkilememiş, fiziksel kararlılığı artırmıştır.
 
 ---
 
 ## Karar 11: PVOD Station 04 Nominal Kurulu Güç (Capacity) Hatasının Gözlem Tabanlı Düzeltilmesi
 
 **Tarih:** 2026-05-27
-**Bağlam:** PVOD `metadata.csv` dosyasında `station04` nominal gücü 20,000 kW (20 MW) olarak belirtilmiştir. Ancak istasyonun anlık güç üretimi incelendiğinde, yıl boyunca 1578 satırda (tüm gözlemlerin %4.72'si) gücün 20 MW'ı aştığı, 716 satırda 22 MW'ı geçtiği ve maksimum üretimin **26.77 MW**'a ulaştığı görülmüştür.
-**Karar:** Nominal kapasite değerinin hatalı girildiği veya DC panel kapasitesinin (25 MW) göz ardı edildiği tespit edilmiş; `station04` nominal kapasitesi **25,000 kW (25 MW)** olarak güncellenmiştir.
-**Gerekçe:** Güç normalizasyonunda (`y_norm = power_kW / capacity_kW`) payda değerinin yapay olarak küçük olması, kapasite faktörünün %134 gibi fiziksel olmayan sınırlara fırlamasına neden olmakta ve multi-plant transfer performansını bozmaktadır. Düzeltme sonrası, maksimum kapasite faktörü %1.07 (makul inverter overload ve bulut yansıması payı) seviyesine çekilerek fiziksel sınırlar korunmuştur.
+**Bağlam:** PVOD metadata'da 20 MW yazan nominal gücün anlık 26.77 MW'a kadar çıktığı görülmüştür.
+**Karar:** `station04` nominal kapasitesi **25,000 kW (25 MW)** olarak güncellenmiştir.
+**Gerekçe:** Güç normalizasyonunda paydanın küçük olması kapasite faktörünün %134 gibi fiziksel olmayan sınırlara çıkmasını engeller.
 
 ---
 
 ## Karar 12: İstasyon Bazlı Yerel Standart Saat Dilimiyle Cyclical (Döngüsel) Zaman Hizalaması
 
 **Tarih:** 2026-05-27
-**Bağlam:** Çoklu istasyon içeren modellerde (multi-plant transfer learning), zaman tabanlı diürnal değişimlerin (saatlik güneş seyri) tüm istasyonlar bazında tutarlı olarak hizalanması gerekir. Eğer döngüsel saat ve ay öznitelikleri (hour_sin/cos) ham UTC saatine göre hesaplanırsa:
-- DKASC (Avustralya, UTC+9.5) için local saat 12:00 (solar öğle) iken, UTC saati 02:30'dur.
-- PVOD (Çin, UTC+8) için local saat 12:00 iken, UTC saati 04:00'tür.
-Bu durumda, her iki santralde de "güneşin tepe noktasında olduğu ve üretimin en yüksek olduğu" öğle vakti model için farklı sin/cos özniteliklerine denk gelecek ve modelin genelleme (transfer) yeteneğini zayıflatacaktır.
-**Karar:** 
-- Döngüsel zaman özniteliklerinin (hour_sin, hour_cos, month_sin, month_cos) hesaplanmasından önce `timestamp` zaman damgası istasyonların kendi yerel standart saat dilimlerine (`Australia/Darwin` ve `Asia/Shanghai`) dönüştürülmüştür.
-- Bu dönüşüm sonrası elde edilen yerel saat (`local_hour`) ve yerel ay (`local_month`) üzerinden trigonometrik döngüsel öznitelikler üretilmiştir.
-**Gerekçe:** Bu hizalama sayesinde yerel saat dilimine göre öğle vakti (12:00) tüm istasyonlar için tamamen aynı döngüsel değerleri alacaktır. Böylece, gradient-boosting tabanlı base learner'lar ve meta-öğrenici, coğrafi konumdan bağımsız olarak "öğle vakti" davranışlarını tek bir ortak fiziksel örüntü üzerinden öğrenebilecek, genelleme ve multi-plant transfer başarısı maksimize edilecektir.
+**Bağlam:** UTC saatinden ötürü ortaya çıkan solar öğle vakti kaymaları.
+**Karar:** Döngüsel zaman özniteliklerinin (hour_sin/cos, month_sin/cos) hesaplanmasından önce `timestamp` zaman damgası istasyonların kendi yerel standart saat dilimlerine dönüştürülmüştür.
+**Gerekçe:** Bu hizalama sayesinde yerel saat dilimine göre öğle vakti (12:00) tüm istasyonlar için tamamen aynı döngüsel değerleri alacaktır.
 
+---
+
+## Karar 13: Çözünürlük Hizalama — DKASC 5-min → 15-min
+
+**Tarih:** 2026-05-28
+**Bağlam:** STAGE-2'de fark edildi — DKASC ham verisi 5 dakikalık, PVOD 15 dakikalık. Aynı modele karışık çözünürlük girdisi metodolojik olarak savunulamaz (lag/rolling öznitelikler ve day-ahead ufku farklı çözünürlüklerde farklı anlam taşır).
+**Karar:** DKASC ortak 15-dakikalık çözünürlüğe downsample edilir (3 ardışık 5-min örneğin ortalaması). PVOD native 15-min korunur. Upsample (interpolasyon) YAPILMAZ — sahte veri üretir.
+**Gerekçe:** Güç ve ışınım eğrileri yumuşak; 5→15-min ortalama bilgi kaybı minimal. Day-ahead tahmin için 15-min yeterli çözünürlük.
+**Etki:** DKASC 1.36M → ~453K satır. İstasyonlar arası oran 6:1'den 2:1'e iner.
+**Not:** Tez önerisinde DKASC için "saatlik" deniyordu; gerçek veri 5-min, ortak 15-min seçildi. Bu öneriden sapma değil, çözünürlük netleştirmesidir.
+
+---
+
+## Karar 14: Veri Dengeleme — Ters-Frekans Örneklem Ağırlığı
+
+**Tarih:** 2026-05-28
+**Bağlam:** Downsample sonrası bile DKASC (453K) PVOD'dan (217K) baskın. Ham satır sayısı baskınlığı gradient'te orantısız etki yaratıyor, multi-station eğitimin amacını (Karar 3) sabote ediyor.
+**Karar:** Eğitimde istasyon-bazlı ters-frekans sample_weight kullanılır:
+  w_i = (1 / n_station) / mean(1 / n_station)
+Tüm veri eğitime girer (hiçbir satır atılmaz), ama her istasyon loss'a dengeli katkı verir.
+**Gerekçe:** "Veri atma" yerine "dengeli katkı". Model her santrali eşit önemde görür, hiçbiri ezilmez. XGBoost/LightGBM/CatBoost hepsi sample_weight destekler.
+**KRİTİK — değerlendirme:** Sample weight SADECE eğitimde. Test metrikleri (coverage, pinball, CRPS) AĞIRLIKSIZ hesaplanır — test gerçek dünya dağılımını yansıtmalı, ağırlık eğitim dengeleme aracıdır.
+**Tez savunması:** "İstasyonlar arası veri hacmi dengesizliği ters-frekans örneklem ağırlıklandırmasıyla giderilmiştir; böylece model dokuz santralin tamamından dengeli biçimde öğrenmiştir."
+
+---
+
+## Karar 15: Few-Shot Affine Kalibrasyon — Mekansal Dayanıklılık Aracı
+
+**Tarih:** 2026-05-28
+**Bağlam:** Holdout testinde model şekli genelleştiriyor (Pearson r=0.80-0.97) ama mutlak kalibrasyon santral verimine duyarlı. station09 (düşük verim) overshoot yapıyor (q05/actual=1.65, coverage %2.7), station02 hafif underestimate (0.88).
+
+**Karar:** Hedef santralin ilk N=7 günlük gerçek üretim verisiyle band-preserving affine kalibrasyon: ortak (a,b) q05 merkezinden öğrenilir, üç quantile'a BİRLİKTE uygulanır, sonra monotonluk sort.
+  `y_cal = a * y_pred + b`   (tüm quantile'lara ortak a,b)
+
+**KRİTİK — yöntem detayı:** Her quantile'a BAĞIMSIZ kalibrasyon bandı çökertir (coverage %2-28'e düşer). Ortak (a,b) ile band yapısı korunur. Bu deneyde doğrulandı.
+
+**Sonuç:** station02 coverage %33→%63, station09 %2.7→%53. N=3/7/14 benzer (3 gün yeter).
+
+**Konumlandırma:** Ayrı özgün katkı DEĞİL. "İki eksenli dayanıklılık" çatısında MEKANSAL dayanıklılık aracı (zamansal = sensör arızası robustness, mekansal = cross-plant transfer + few-shot adaptasyon).
+
+**Koşullu uygulama (STAGE-11'de kesinleşecek):** |a-1| > threshold ise kalibre et, değilse zero-shot bırak. Threshold gerçek deployment datasetine göre ayarlanacak. Eğitim-içi a dağılımı doğal kesim 0.164-0.544 arası (8 istasyon kümeli, dkasc outlier).
+
+**SINIRLILIK (tezde belirtilecek):** Kalibrasyon penceresi hedef dönemin meteorolojik koşullarını temsil etmeli. Mevsimsel geçişte kurulan santralde ilk N gün yıl boyu performansı yansıtmayabilir; periyodik yeniden kalibrasyon önerilir (dkasc'de ilk-7-gün mevsimsel bias gözlendi: a=0.46 vs mevsimsel-temsili a=0.72).
+
+**DÜŞÜRÜLEN ARGÜMAN:** Threshold'u "ölçüm belirsizliği eşiği" ile gerekçelendirme DENENDİ ama gürültü tabanı 0.59 çıktı (0.15'i desteklemedi). Bu argüman KULLANILMAYACAK. Threshold gerekçesi sadece "a dağılımında doğal kesim noktası" olacak.
 

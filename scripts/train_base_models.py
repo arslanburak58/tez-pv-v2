@@ -33,8 +33,8 @@ def main() -> None:
     logger.info(f"Bölünme indeksleri yüklendi.")
     
     # 2. X ve y ayrımını yap
-    # Eğitim dışı sütunları ayır
-    exclude_cols = ["timestamp", "station_id", "power_kW", "y_norm", "original_index"]
+    # Eğitim dışı sütunları ayır (sample_weight dahil)
+    exclude_cols = ["timestamp", "station_id", "power_kW", "y_norm", "original_index", "sample_weight"]
     feature_cols = [col for col in df.columns if col not in exclude_cols]
     
     logger.info(f"Model eğitiminde kullanılacak {len(feature_cols)} öznitelik belirlendi:")
@@ -42,6 +42,7 @@ def main() -> None:
     
     X = df[feature_cols].copy()
     y = df["y_norm"].copy()
+    sample_weight = df["sample_weight"].copy()
     
     quantiles = [0.1, 0.5, 0.9]
     algos = ["lgbm", "catboost", "xgboost"]
@@ -57,13 +58,14 @@ def main() -> None:
             c_name = col_name(algo, q)
             logger.info(f"OOF tahminler üretiliyor: {c_name}...")
             
-            # Walk-forward OOF tahminleri üret
+            # Walk-forward OOF tahminleri üret (sample_weight ile)
             c_val_indices, c_oof_preds = make_oof_predictions(
                 algo=algo,
                 q=q,
                 X=X,
                 y=y,
-                folds=splits["folds"]
+                folds=splits["folds"],
+                sample_weight=sample_weight
             )
             
             # Doğrulama indekslerinin tüm modeller için aynı sırayla döndüğünü teyit et
@@ -74,10 +76,10 @@ def main() -> None:
                 
             oof_predictions[c_name] = c_oof_preds
             
-            # Ortalama OOF Pinball loss değerini hesapla ve logla
+            # Ortalama OOF Pinball loss değerini hesapla ve logla (AĞIRLIKSIZ DEĞERLENDİRME - Karar 14)
             y_val_actual = y.iloc[val_indices].values
             mean_loss = pinball_loss(y_val_actual, c_oof_preds, q)
-            logger.info(f"  -> Model {c_name} Ortalama OOF Pinball Loss: {mean_loss:.5f}")
+            logger.info(f"  -> Model {c_name} Ortalama OOF Pinball Loss (Ağırlıksız): {mean_loss:.5f}")
             
     # OOF veri çerçevesini (DataFrame) oluştur
     x_meta_df = pd.DataFrame(oof_predictions, index=val_indices)
@@ -85,7 +87,8 @@ def main() -> None:
     x_meta_data = {
         "val_indices": val_indices,
         "x_meta": x_meta_df,
-        "y_meta": y.iloc[val_indices]
+        "y_meta": y.iloc[val_indices],
+        "sample_weight_meta": sample_weight.iloc[val_indices] # Meta-öğrenici için ağırlıkları kaydet
     }
     
     # x_meta_v2.joblib dosyasını kaydet
@@ -101,6 +104,7 @@ def main() -> None:
     
     X_train_val = X.iloc[train_val_indices]
     y_train_val = y.iloc[train_val_indices]
+    w_train_val = sample_weight.iloc[train_val_indices]
     
     logger.info(f"Fully-trained modeller {len(train_val_indices)} satırlık eğitim+validation kümesinde eğitilecek.")
     
@@ -111,11 +115,13 @@ def main() -> None:
             c_name = col_name(algo, q)
             logger.info(f"Fully-trained model eğitiliyor: {c_name}...")
             
+            # Fully-trained modeli sample_weight ile eğit
             model = train_base_learner(
                 algo=algo,
                 q=q,
                 X_train=X_train_val,
-                y_train=y_train_val
+                y_train=y_train_val,
+                sample_weight=w_train_val
             )
             
             base_models[c_name] = model
