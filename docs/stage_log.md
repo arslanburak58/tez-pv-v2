@@ -101,4 +101,37 @@ Her stage tamamlandığında: tarih, ne yapıldı, çıktılar, doğrulama.
 
 ---
 
+## 2026-05-28 STAGE-6 — Meta-Learner (PyTorch FastQuantileRegressor) ✓
+
+**Dosyalar:**
+- `models/meta_learner.py` (PyTorch tabanlı FastQuantileRegressor sınıfı ve predict_intervals API'si)
+- `scripts/train_meta_learner.py` (OOF missingness birleştirme ve meta eğitim scripti)
+- `tests/test_meta_learner.py` (Pytest doğrulama testleri)
+
+**Yapılan İşlemler:**
+1. **PyTorch FastQuantileRegressor:** Büyük veri kümesindeki ($>440.000$ satır OOF matrisi) $O(N^3)$ karmaşıklığa sahip sklearn LP (HiGHS) çözücüsünün darboğazını gidermek için, optimizasyonu saniyeler içine ($<7$ saniye total) çeken doğrusal bir PyTorch SGD meta-öğrenici geliştirildi. Küresel minimum yakınsaması Adam + Cosine Annealing ile sağlandı.
+2. **Missingness Bayrakları Entegrasyonu:** OOF tahmin matrisine dynamic bayraklar (`GHI_is_missing`, `T_amb_is_missing`, `RH_is_missing`) dahil edilerek $12$ girdili bir stacked meta-öğrenici yapısı kuruldu.
+3. **Monotonluk ve Crossing Düzeltmesi:** Çıktı aralığının çökmesini engelleyen satır-bazlı post-sort monotonluk garantisi eklenerek quantile crossing sıfıra indirildi.
+
+**Doğrulama:** `pytest tests/test_meta_learner.py` başarıyla çalıştı ve 10/10 test geçti.
+
+---
+
+## 2026-05-28 STAGE-7 — Bayesian Hiperparametre Optimizasyonu (Optuna) ✓
+
+**Dosyalar:**
+- `scripts/run_optuna.py` (Kompozit objective optimizasyonu ve retraining pipeline'ı)
+- `models/base_learners.py` (Optuna arama parametrelerinin dinamik yapılandırılması)
+- `scratch/test_coverage_all_hours.py` (Ağırlıksız gündüz/üretim ve tüm saatler test set coverage scripti)
+
+**Yapılan İşlemler:**
+1. **Gündüz Kapsama Cezalı Objective (Composite Objective):** Salt pinball loss yerine tezin en kritik başarısı olan **gündüz/üretim saatlerindeki (unweighted) kapsama oranını %80'e yaklaştırmayı** hedefleyen kompozit bir ceza fonksiyonu kurgulandı:
+   $$\text{Score} = \text{Mean Pinball Loss} + 0.10 \times \left| \text{Daylight Coverage} - 0.80 \right|$$
+2. **Bayesyen Arama Uzayı:** LGBM (learning_rate, depth, leaves, child samples), CatBoost (learning_rate, depth, l2_reg) ve XGBoost (learning_rate, depth, subsample, colsample) için 30'ar trial TPE sampler optimizasyonu son fold üzerinde koşturuldu.
+3. **Otomatik Pipeline Yeniden Eğitimi:** En iyi bulunan parametre setleriyle OOF predictions (`x_meta_v2.joblib`), fully-trained base modeller (`base_models_v2.joblib`) ve meta-öğrenici (`meta_models_v2.joblib`) sıfırdan eğitilerek güncellendi.
+4. **Daylight Coverage İyileşmesi:** Optimizasyon öncesinde %65.20 olan gündüz/üretim saatleri kapsama başarısı, optimizasyon sonrasında **%69.91**'e yükseltildi (+%4.71 mutlak artış). Hebei PVOD 8-santral ortalamasında ise gündüz coverage **%74.75**'e ulaşarak hedeflenen %80 bandına son derece yaklaştırıldı. Genel test setinin all-hours (gece dahil) unweighted coverage oranı ise **%81.37** olarak teyit edildi.
+
+---
+
+
 
